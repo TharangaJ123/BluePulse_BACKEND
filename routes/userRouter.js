@@ -52,7 +52,7 @@ router.post('/reg', async (req, res) => {
     const savedUser = await newUser.save();
 
     // Send verification email
-    const verificationUrl = `http://localhost:5000/User/verify-email?token=${verificationToken}`;
+    const verificationUrl = `http://localhost:8070/User/verify-email?token=${verificationToken}`;
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,

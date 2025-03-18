@@ -39,7 +39,7 @@ app.use(passport.session()); // Enable session support for Passport
 
 // MongoDB Connection
 mongoose
-  .connect(process.env.MONGO_URL, {
+  .connect(process.env.MONGODB_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
