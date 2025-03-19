@@ -1,32 +1,33 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const app =express();
+require("dotenv").config();
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
 
-require('dotenv').config();
-
-const PORT = process.env.PORT || 8070;
-
+const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-const URL = process.env.MONGODB_URL;
+if (!process.env.MONGODB_URI) {
+  console.error("❌ ERROR: MONGODB_URI is not defined in .env file.");
+  process.exit(1);
+}
 
-mongoose.connect(URL,{
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("✅ MongoDB Atlas Connected");
+    console.log(`✅ Using Database: ${mongoose.connection.name}`); // Logs the database name
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB Connection Error:", err);
+    process.exit(1);
+  });
 
-    useNewUrlParser:true,
-    useUnifiedTopology:true,
+const serviceRoutes = require("./routes/services");
+app.use("/api", serviceRoutes);
 
-});
-
-const connection = mongoose.connection;
-
-connection.once('open',()=>{
-    console.log("MOngoDB connection is successfull");
-});
-
-app.listen(PORT,()=>{
-    console.log(`Server is up and running on port number: ${PORT}`);
-})
+const PORT = process.env.PORT || 5003;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
