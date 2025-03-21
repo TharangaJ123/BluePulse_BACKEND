@@ -13,6 +13,8 @@ const userRouter = require('./routes/userRouter');
 const employeeRouter = require('./routes/employeeRouter');
 const RoleAccess = require('./routes/roleAccess');
 const User = require('./models/User');
+const ContactRouter=require('./routes/contactRouter.js')
+const contact=require('./models/Contact .js')
 
 require('dotenv').config();
 
@@ -121,6 +123,7 @@ passport.use(
   app.use('/User', userRouter);
   app.use('/Employee', employeeRouter);
   app.use('/RoleAccess', RoleAccess);
+  app.use('/Contact',ContactRouter);
 
 
   //sashika
@@ -137,6 +140,7 @@ app.use("/commi",commiRouter);
 
 //lathika
 const serviceRoutes = require("./routes/services");
+const Contact = require('./models/Contact .js');
 app.use("/api", serviceRoutes);
 
 connection.once('open',()=>{

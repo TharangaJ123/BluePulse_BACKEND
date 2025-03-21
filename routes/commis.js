@@ -7,27 +7,39 @@ const fs = require("fs");
 
 // Set up storage for images
 const storage = multer.diskStorage({
-  destination: "./uploads/", // Folder to store uploaded photos
+  destination: "./uploads/",  // images uploads folder
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Unique filename
-  },
+      cb(null, Date.now() + path.extname(file.originalname)); // Unique filename
+  }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage: storage });
 
-// Add a Commi with Photo Upload
+
+// POST route to add finance data
 router.post("/add", upload.single("photo"), async (req, res) => {
   try {
-    const { pid, email, description } = req.body;
-    const photo = req.file ? `/uploads/${req.file.filename}` : null; // File path
+    const { email, location, description } = req.body;
 
-    const newCommi = new Commi({ pid, email, photo, description });
+    // Validate required fields
+    if (!email || !location || !description) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
-    await newCommi.save(); // Save the document to the database
-    res.status(201).json({ message: "Commi added successfully", data: newCommi });
+    const filePath = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const newCommunity = new Commi({
+      email,
+      photo: filePath,
+      location,
+      description,
+    });
+
+    await newCommunity.save();
+    res.status(201).json({ message: "Post added successfully", data: newCommunity });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error adding Commi", details: err.message });
+    res.status(500).json({ error: "Error adding post", details: err.message });
   }
 });
 
@@ -46,10 +58,10 @@ router.get("/getAll", async (req, res) => {
 router.put("/update/:id", upload.single("photo"), async (req, res) => {
   try {
     let userId = req.params.id;
-    const { pid, email, description } = req.body;
+    const { pid, email, description, location } = req.body;
     const photo = req.file ? `/uploads/${req.file.filename}` : req.body.photo; // Use existing photo if no new file is uploaded
 
-    const updateCommi = { pid, email, photo, description };
+    const updateCommi = { pid, email, photo, description, location };
 
     const update = await Commi.findByIdAndUpdate(userId, updateCommi, { new: true });
 
@@ -95,10 +107,10 @@ router.delete("/delete/:id", async (req, res) => {
 
 // Get a Commi by ID
 router.get("/get/:id", async (req, res) => {
-  let userId = req.params.id;
+  let id = req.params.id;
 
   try {
-    const commi = await Commi.findById(userId);
+    const commi = await Commi.findById(id);
     if (!commi) {
       return res.status(404).send({ status: "Commi not found" });
     }
