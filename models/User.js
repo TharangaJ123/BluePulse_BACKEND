@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null, // Stores the URL or path to the user's image
   },
+  user_role: {
+    type: String,
+    enum: ['admin', 'employee', 'user'],
+    default: 'user',
+  },
 }, {
   timestamps: false,
 });
@@ -80,16 +85,33 @@ userSchema.pre('save', function (next) {
 
 // Middleware to hash the password before saving the user
 userSchema.pre('save', async function (next) {
-  if (this.isModified('password_hash')) {
-    const salt = await bcrypt.genSalt(10); // Generate a salt
-    this.password_hash = await bcrypt.hash(this.password_hash, salt); // Hash the password
+  try {
+    if (this.isModified('password_hash')) {
+      console.log('Hashing password...');
+      const salt = await bcrypt.genSalt(10);
+      this.password_hash = await bcrypt.hash(this.password_hash, salt);
+      console.log('Password hashed successfully');
+    }
+    next();
+  } catch (error) {
+    console.error('Error hashing password:', error);
+    next(error);
   }
-  next();
 });
 
 // Method to compare passwords (for login)
 userSchema.methods.comparePassword = async function (password) {
-  return await bcrypt.compare(password, this.password_hash);
+  try {
+    console.log('Comparing passwords...');
+    console.log('Input password:', password);
+    console.log('Stored hash:', this.password_hash);
+    const result = await bcrypt.compare(password, this.password_hash);
+    console.log('Password comparison result:', result);
+    return result;
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    throw error;
+  }
 };
 
 // Method to generate a password reset token
