@@ -2,6 +2,7 @@
 const express = require('express');
 const RoleAccess = require('../models/RoleAccess');
 const router = express.Router();
+const Employee = require('../models/Employee'); 
 
 // Create a new role access entry
 router.post('/', async (req, res) => {
@@ -68,5 +69,31 @@ router.delete('/:role_id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+
+
+// Route to find accessible_sections by role name
+router.get('/employees/by-role/:roleName', async (req, res) => {
+  try {
+    const { roleName } = req.params; // Extract role name from URL parameters
+
+    // Find the role access document with the specified role name
+    const roleAccess = await RoleAccess.findOne({ role_name: roleName });
+
+    if (!roleAccess) {
+      return res.status(404).json({ error: `No role found with the name: ${roleName}` });
+    }
+
+    // Return the accessible_sections for the role
+    res.json({
+      role: roleAccess.role_name,
+      accessible_sections: roleAccess.accessible_sections,
+    });
+  } catch (err) {
+    console.error("Error fetching accessible sections by role:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 module.exports = router;

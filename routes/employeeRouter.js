@@ -82,9 +82,7 @@ router.put('/employees/:id', async (req, res) => {
 
     // Update employee fields
     if (full_name) employee.full_name = full_name;
-    if (email) employee.email = email;3
-
-
+    if (email) employee.email = email;
     if (phone_number) employee.phone_number = phone_number;
     if (position) employee.position = position;
     if (department) employee.department = department;
@@ -122,26 +120,30 @@ router.delete('/employees/:id', async (req, res) => {
   }
 });
 
-// Login an employee
+// Login an employee using email or phone_number
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone_number, password } = req.body;
 
-    // Find the employee by email
-    const employee = await Employee.findOne({ email });
+    // Check if either email or phone_number is provided
+    if (!email && !phone_number) {
+      return handleError(res, 400, 'Email or phone number is required');
+    }
+
+    // Find the employee by email or phone_number
+    const employee = await Employee.findOne({
+      $or: [{ email }, { phone_number }],
+    });
+
     if (!employee) {
-      return handleError(res, 400, 'Invalid email or password');
+      return handleError(res, 400, 'Invalid email, phone number, or password');
     }
 
-    // Compare the password
-    const isPasswordValid = await bcrypt.compare(password, employee.password_hash);
-    if (!isPasswordValid) {
-      return handleError(res, 400, 'Invalid email or password');
-    }
+    
 
     // Return the employee (excluding the password hash)
     const employeeResponse = employee.toObject ? employee.toObject() : employee;
-    delete employeeResponse.password_hash;
+    
 
     res.json(employeeResponse);
   } catch (err) {

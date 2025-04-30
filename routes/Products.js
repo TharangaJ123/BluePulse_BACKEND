@@ -55,27 +55,42 @@ router.route("/getAllProducts").get((req,res)=>{
 })
 
 //update product : http://localhost:8070/products/updateProduct/1
-router.route("/updateProduct/:id").put(async(req,res)=>{
-    
-    let productId = req.params.id;
-    const{name,price,description,imageUrl,category,quantity} = req.body;
-
-    const updateProduct = {
+router.put("/updateProduct/:id", upload.single("image"), async (req, res) => {
+    try {
+      let productId = req.params.id;
+      const { name, price, description, category, quantity, supplier, imageUrl } = req.body;
+  
+      const updateProduct = {
         name,
         price,
         description,
-        imageUrl,
         category,
-        quantity
+        quantity,
+        supplier
+      };
+  
+      // If new image was uploaded
+      if (req.file) {
+        updateProduct.imageUrl = "/uploads/" + req.file.filename;
+      } else if (imageUrl) {
+        // Keep existing image if no new image was uploaded
+        updateProduct.imageUrl = imageUrl;
+      }
+  
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        updateProduct,
+        { new: true }
+      );
+  
+      if (!updatedProduct) {
+        return res.status(404).send({ status: "No product found" });
+      }
+      res.status(200).send({ status: "Product updated", updatedProduct });
+    } catch (err) {
+      res.status(500).send({ status: "Error with updating data", error: err.message });
     }
-
-    const update = await Product.findByIdAndUpdate(productId,updateProduct).then(()=>{
-        res.status(200).send({status:"Product updated",updateProduct});
-    }).catch((err)=>{
-        res.status(500).send({status:"Error with updating data",error:err.message});
-    })
-
-});
+  });
 
 //delete product : http://localhost:8070/products/deleteProduct/1
 router.route("/deleteProduct/:id").delete(async(req,res)=>{

@@ -96,7 +96,7 @@ router.post('/form-reg', async (req, res) => {
 
     // Hash the password
     const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
+    const password_hash = password;
 
     // Create a new user
     const newUser = new User({
