@@ -8,7 +8,7 @@ const ServiceRequestSchema = new mongoose.Schema({
     preferredDate: { type: Date, required: true },
     preferredTime: { type: String, required: true },
     additionalNotes: { type: String },
-    termsAccepted: { type: Boolean, required: true }
+   
 });
 
 const ServiceRequest = mongoose.model("ServiceRequest", ServiceRequestSchema);
