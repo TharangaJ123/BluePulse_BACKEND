@@ -2,8 +2,8 @@
 const nodemailer = require('nodemailer');
 const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
+const OrderModel = require('../models/OrderModel');
 
-// Configure Nodemailer
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -14,7 +14,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Function to send email
 const sendEmail = async (to, subject, text) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -31,12 +30,10 @@ const sendEmail = async (to, subject, text) => {
   }
 };
 
-// Check low stock and notify supplier
 const checkLowStockAndNotify = async (productId, newQuantity) => {
   const product = await Product.findById(productId).populate('supplier');
   if (!product) throw new Error('Product not found');
 
-  // Define the low stock threshold (e.g., 10)
   const lowStockThreshold = 10;
 
   if (newQuantity <= lowStockThreshold) {
@@ -44,11 +41,42 @@ const checkLowStockAndNotify = async (productId, newQuantity) => {
     if (!supplier) throw new Error('Supplier not found');
 
     const subject = `Low Stock Alert: ${product.name}`;
-    const text = `Mr.${supplier.name},The stock level for ${product.name} is now ${newQuantity}. Please restock soon.`;
+    const text = `Mr.${supplier.name},The stock level for ${product.name} is now ${newQuantity}. Please restock soon.BluePulse,Gampaha`;
 
-    // Send email to supplier
     await sendEmail(supplier.email, subject, text);
   }
 };
 
-module.exports = { checkLowStockAndNotify };
+const sendEmailToCustomerByOrderPlaced = async (orderId, email) => {
+  const order = await OrderModel.findById(orderId);
+  if (!order) throw new Error('Order not found');
+
+  const subject = `🛒 Your Order #${order._id} Has Been Received – BluePulse`;
+
+  const text = `Hi there,
+  
+  Thank you for shopping with **BluePulse**! We're excited to let you know that we've received your order **#${order._id}**.
+  
+  🧾 **Order Details**
+  - Order ID: ${order._id}
+  - Status: ${order.status}
+  - Total Amount: LKR ${order.totalAmount}
+  - Transaction ID: ${order.transactionId}
+  - Products: ${order.products.map(item => `Product ID: ${item.name}, Quantity: ${item.quantity}`).join('/n')}
+  
+  We'll notify you as soon as your items are on their way.
+  
+  If you have any questions or need help, feel free to contact our support team at support@bluepulse.lk.
+  
+  Thanks again for choosing BluePulse!
+  
+  Warm regards,  
+  **The BluePulse Team**  
+  📍 Gampaha | 🌐 www.bluepulse.lk`;
+  
+
+  await sendEmail(email, subject, text);
+};
+
+
+module.exports = { checkLowStockAndNotify,sendEmailToCustomerByOrderPlaced };
