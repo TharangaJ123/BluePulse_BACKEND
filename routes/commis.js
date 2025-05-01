@@ -13,8 +13,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage: storage });
-
+const upload = multer({ storage: storage });
 
 // POST route to add finance data
 router.post("/add", upload.single("photo"), async (req, res) => {
@@ -49,8 +48,25 @@ router.get("/getAll", async (req, res) => {
     const commis = await Commi.find();
     res.json(commis);
   } catch (err) {
-    console.log(err);
-    res.status(500).send({ status: "Error with fetching commis", error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Error fetching posts", details: err.message });
+  }
+});
+
+// Get community posts by email
+router.get("/getByEmail/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const posts = await Commi.find({ email: email });
+    
+    if (!posts || posts.length === 0) {
+      return res.status(404).json({ message: "No posts found for this email" });
+    }
+    
+    res.json(posts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error fetching posts by email", details: err.message });
   }
 });
 
