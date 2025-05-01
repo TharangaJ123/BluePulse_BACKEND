@@ -86,12 +86,16 @@ userSchema.pre('save', function (next) {
 // Middleware to hash the password before saving the user
 userSchema.pre('save', async function (next) {
   try {
+    // Only hash the password if it's modified or new
     if (this.isModified('password_hash')) {
-      const salt = await bcrypt.genSalt(10); // Generate a salt
-      this.password_hash = await bcrypt.hash(this.password_hash, salt); // Hash the password
+      console.log('Hashing password for user:', this.email);
+      const salt = await bcrypt.genSalt(10);
+      this.password_hash = await bcrypt.hash(this.password_hash, salt);
+      console.log('Password hashed successfully');
     }
     next();
   } catch (error) {
+    console.error('Error hashing password:', error);
     next(error);
   }
 });
@@ -99,8 +103,12 @@ userSchema.pre('save', async function (next) {
 // Method to compare passwords (for login)
 userSchema.methods.comparePassword = async function (password) {
   try {
-    return await bcrypt.compare(password, this.password_hash);
+    console.log('Comparing password for user:', this.email);
+    const isMatch = await bcrypt.compare(password, this.password_hash);
+    console.log('Password comparison result:', isMatch);
+    return isMatch;
   } catch (error) {
+    console.error('Error comparing passwords:', error);
     throw new Error('Error comparing passwords');
   }
 };
