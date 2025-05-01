@@ -161,4 +161,67 @@ router.route("/get/:id").get(async (req, res) => {
     });
 });
 
+// Add finance record
+router.route("/add").post((req, res) => {
+    const { transactionType, amount, date, description, email } = req.body;
+
+    const newFinance = new Finance({
+        transactionType,
+        amount,
+        date,
+        description,
+        email
+    });
+
+    newFinance.save()
+        .then(() => res.json("Finance record added"))
+        .catch((err) => res.status(400).json("Error: " + err));
+});
+
+// Get all finance records
+router.route("/").get((req, res) => {
+    Finance.find()
+        .then(finances => res.json(finances))
+        .catch(err => res.status(400).json("Error: " + err));
+});
+
+// Get finance records by email
+router.route("/byEmail/:email").get((req, res) => {
+    const { email } = req.params;
+    Finance.find({ email: email })
+        .then(finances => res.json(finances))
+        .catch(err => res.status(400).json("Error: " + err));
+});
+
+// Get finance record by ID
+router.route("/:id").get((req, res) => {
+    Finance.findById(req.params.id)
+        .then(finance => res.json(finance))
+        .catch(err => res.status(400).json("Error: " + err));
+});
+
+// Delete finance record
+router.route("/:id").delete((req, res) => {
+    Finance.findByIdAndDelete(req.params.id)
+        .then(() => res.json("Finance record deleted"))
+        .catch(err => res.status(400).json("Error: " + err));
+});
+
+// Update finance record
+router.route("/update/:id").post((req, res) => {
+    Finance.findById(req.params.id)
+        .then(finance => {
+            finance.transactionType = req.body.transactionType;
+            finance.amount = req.body.amount;
+            finance.date = req.body.date;
+            finance.description = req.body.description;
+            finance.email = req.body.email;
+
+            finance.save()
+                .then(() => res.json("Finance record updated"))
+                .catch(err => res.status(400).json("Error: " + err));
+        })
+        .catch(err => res.status(400).json("Error: " + err));
+});
+
 module.exports = router;

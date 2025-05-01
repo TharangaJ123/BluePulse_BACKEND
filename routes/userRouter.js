@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User'); // Import the User model
 const bcrypt = require('bcrypt'); // For password hashing
+const jwt = require('jsonwebtoken');
+const auth = require('../middleware/auth');
+const { generateToken, generateRefreshToken, generateNewJWTSecret } = require('../utils/jwt');
+const fs = require('fs');
+const path = require('path');
 
 // Utility function to handle errors
 const handleError = (res, status, message) => {
@@ -96,7 +101,7 @@ router.post('/form-reg', async (req, res) => {
 
     // Hash the password
     const salt = await bcrypt.genSalt(10);
-    const password_hash = password;
+    const password_hash = await bcrypt.hash(password, salt);
 
     // Create a new user
     const newUser = new User({
@@ -104,10 +109,10 @@ router.post('/form-reg', async (req, res) => {
       email: trimmedEmail,
       password_hash,
       phone_number: phone_number || null,
-      user_image: user_image || null, // Add user image (default to null if not provided)
-      status: 'active', // Default status
-      user_role: 'employee', // Default role
-      isVerified: true, // Mark as verified since no email verification is needed
+      user_image: user_image || null,
+      status: 'active',
+      user_role: 'employee',
+      isVerified: true,
     });
 
     // Save the user to the database
@@ -127,10 +132,13 @@ router.post('/form-reg', async (req, res) => {
 // Login a user
 router.post('/login', async (req, res) => {
   try {
+    console.log('Login attempt:', { email: req.body.email });
+
     const { email, password } = req.body;
 
     // Validate required fields
     if (!email || !password) {
+      console.log('Missing credentials:', { email: !!email, password: !!password });
       return handleError(res, 400, 'Email and password are required');
     }
 
@@ -141,23 +149,117 @@ router.post('/login', async (req, res) => {
     // Find the user by email
     const user = await User.findOne({ email: trimmedEmail });
     if (!user) {
+      console.log('User not found:', trimmedEmail);
       return handleError(res, 400, 'Invalid email or password');
+    }
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      console.log('Inactive user:', { email: trimmedEmail, status: user.status });
+      return handleError(res, 403, 'Account is not active');
     }
 
     // Compare the password
     const isPasswordValid = await bcrypt.compare(trimmedPassword, user.password_hash);
     if (!isPasswordValid) {
+      console.log('Invalid password for user:', trimmedEmail);
       return handleError(res, 400, 'Invalid email or password');
     }
 
-    // Return the user (excluding the password hash)
-    const userResponse = { ...user.toObject() };
-    delete userResponse.password_hash;
+    // Generate new JWT secret
+    const newJWTSecret = generateNewJWTSecret();
+    
+    // Update .env file with new JWT secret
+    const envPath = path.join(__dirname, '..', '.env');
+    let envContent = '';
+    
+    try {
+      envContent = fs.readFileSync(envPath, 'utf8');
+    } catch (error) {
+      console.log('Creating new .env file');
+    }
 
-    res.json(userResponse);
+    // Update or add JWT_SECRET
+    if (envContent.includes('JWT_SECRET=')) {
+      envContent = envContent.replace(/JWT_SECRET=.*/, `JWT_SECRET=${newJWTSecret}`);
+    } else {
+      envContent += `\nJWT_SECRET=${newJWTSecret}`;
+    }
+
+    // Write back to .env file
+    fs.writeFileSync(envPath, envContent);
+
+    // Update process.env
+    process.env.JWT_SECRET = newJWTSecret;
+
+    // Generate tokens with new secret
+    try {
+      const accessToken = generateToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Update user's refresh token in database
+      user.refreshToken = refreshToken;
+      await user.save();
+
+      // Return the user data and tokens
+      const userResponse = { ...user.toObject() };
+      delete userResponse.password_hash;
+      delete userResponse.refreshToken;
+      
+      console.log('Login successful:', { email: trimmedEmail, userId: user._id });
+      
+      res.json({
+        user: userResponse,
+        accessToken,
+        refreshToken
+      });
+    } catch (tokenError) {
+      console.error('Token generation error:', tokenError);
+      return handleError(res, 500, 'Error generating authentication tokens');
+    }
   } catch (err) {
     console.error('Login error:', err);
     handleError(res, 500, 'Server error');
+  }
+});
+
+// Add a refresh token endpoint
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return handleError(res, 400, 'Refresh token is required');
+    }
+
+    // Verify the refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    
+    // Find the user
+    const user = await User.findOne({ 
+      _id: decoded.userId,
+      refreshToken: refreshToken
+    });
+
+    if (!user) {
+      return handleError(res, 401, 'Invalid refresh token');
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    // Update user's refresh token
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    res.json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    handleError(res, 401, 'Invalid refresh token');
   }
 });
 
