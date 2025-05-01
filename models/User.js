@@ -35,6 +35,15 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true, // Allows null values but ensures uniqueness for non-null values
   },
+  refreshToken: {
+    type: String,
+    default: null, // Stores the refresh token for JWT
+  },
+  user_role: {
+    type: String,
+    enum: ['user', 'employee', 'admin'],
+    default: 'user',
+  },
   created_at: {
     type: Date,
     default: Date.now,
@@ -44,10 +53,6 @@ const userSchema = new mongoose.Schema({
     default: Date.now,
   },
   // New fields for additional features
-  refreshToken: {
-    type: String,
-    default: null, // Stores the refresh token for JWT
-  },
   passwordResetToken: {
     type: String,
     default: null, // Stores the password reset token
@@ -80,16 +85,24 @@ userSchema.pre('save', function (next) {
 
 // Middleware to hash the password before saving the user
 userSchema.pre('save', async function (next) {
-  if (this.isModified('password_hash')) {
-    const salt = await bcrypt.genSalt(10); // Generate a salt
-    this.password_hash = await bcrypt.hash(this.password_hash, salt); // Hash the password
+  try {
+    if (this.isModified('password_hash')) {
+      const salt = await bcrypt.genSalt(10); // Generate a salt
+      this.password_hash = await bcrypt.hash(this.password_hash, salt); // Hash the password
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
 // Method to compare passwords (for login)
 userSchema.methods.comparePassword = async function (password) {
-  return await bcrypt.compare(password, this.password_hash);
+  try {
+    return await bcrypt.compare(password, this.password_hash);
+  } catch (error) {
+    throw new Error('Error comparing passwords');
+  }
 };
 
 // Method to generate a password reset token
