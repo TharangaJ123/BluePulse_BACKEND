@@ -117,8 +117,30 @@ passport.use(
     '/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/login' }),
     (req, res) => {
-      // Successful authentication, redirect or respond with token
-      res.redirect('/');
+      // Generate tokens for the authenticated user
+      const accessToken = generateAccessToken(req.user);
+      const refreshToken = generateRefreshToken(req.user);
+
+      // Update user's refresh token in database
+      req.user.refreshToken = refreshToken;
+      req.user.save();
+
+      // Return the user data and tokens
+      const userResponse = req.user.toObject();
+      delete userResponse.password_hash;
+      delete userResponse.refreshToken;
+
+      // Send the response back to the popup window
+      res.send(`
+        <script>
+          window.opener.postMessage({
+            user: ${JSON.stringify(userResponse)},
+            accessToken: "${accessToken}",
+            refreshToken: "${refreshToken}"
+          }, 'http://localhost:3000');
+          window.close();
+        </script>
+      `);
     }
   );
   

@@ -92,6 +92,7 @@ router.post('/form-reg', async (req, res) => {
 
     // Trim inputs
     const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
 
     // Check if the email already exists
     const existingUser = await User.findOne({ email: trimmedEmail });
@@ -99,18 +100,14 @@ router.post('/form-reg', async (req, res) => {
       return handleError(res, 400, 'Email already exists');
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
-
-    // Create a new user
+    // Create a new user with password stored directly
     const newUser = new User({
       full_name,
       email: trimmedEmail,
-      password_hash,
+      password_hash: trimmedPassword, // Store password directly
       phone_number: phone_number || null,
       status: 'active',
-      user_role: user_role || 'user', // Use provided role or default to 'user'
+      user_role: user_role || 'user',
       isVerified: true,
     });
 
@@ -142,6 +139,7 @@ router.post('/login', async (req, res) => {
     const trimmedPassword = password.trim();
 
     console.log('Login attempt for email:', trimmedEmail);
+    console.log('Entered password:', trimmedPassword);
 
     // Find the user by email
     const user = await User.findOne({ email: trimmedEmail });
@@ -154,15 +152,26 @@ router.post('/login', async (req, res) => {
     console.log('User found:', {
       email: user.email,
       hasPassword: !!user.password_hash,
-      status: user.status
+      status: user.status,
+      storedPassword: user.password_hash // Now showing plain password
     });
 
-    // Hash the provided password before comparison
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(trimmedPassword, salt);
+    // Debug logging for password comparison
+    console.log('Password comparison details:', {
+      enteredPassword: trimmedPassword,
+      storedPassword: user.password_hash,
+      passwordLengths: {
+        entered: trimmedPassword.length,
+        stored: user.password_hash.length
+      },
+      passwordTypes: {
+        entered: typeof trimmedPassword,
+        stored: typeof user.password_hash
+      }
+    });
 
-    // Compare the hashed password with the stored hash
-    const isPasswordValid = await bcrypt.compare(trimmedPassword, user.password_hash);
+    // Direct string comparison without hashing
+    const isPasswordValid = trimmedPassword == user.password_hash;
     console.log('Password comparison result:', isPasswordValid);
 
     if (!isPasswordValid) {
@@ -337,12 +346,6 @@ router.post('/reset-password', async (req, res) => {
       return handleError(res, 400, 'User not found');
     }
 
-    console.log('User found for reset:', {
-      userId: user._id,
-      storedToken: user.passwordResetToken,
-      receivedToken: resetToken
-    });
-
     // Check if the stored reset token matches and is not expired
     if (!user.passwordResetToken) {
       return handleError(res, 400, 'No reset token found for this user');
@@ -356,13 +359,8 @@ router.post('/reset-password', async (req, res) => {
       return handleError(res, 400, 'Reset token has expired');
     }
 
-    // Hash the new password with a new salt
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(newPassword, salt);
-    console.log('New password hashed successfully');
-
-    // Update user's password and clear reset token
-    user.password_hash = password_hash;
+    // Store new password directly without hashing
+    user.password_hash = newPassword;
     user.passwordResetToken = null;
     user.passwordResetExpires = null;
     await user.save();
