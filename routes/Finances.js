@@ -31,8 +31,8 @@ router.post("/add", upload.single("UploadDocuments"), async (req, res) => {
         message,
       });
   
-      await newFinance.save(); // Save the document to the database
-      res.status(201).json({ message: "Finance added successfully", data: newFinance });
+      const savedTransaction = await newFinance.save(); // Save the document to the database
+      res.status(201).json({ message: "Finance added successfully", data: newFinance,_id:savedTransaction._id });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Error adding finance", details: err.message });
