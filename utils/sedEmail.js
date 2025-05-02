@@ -78,5 +78,65 @@ const sendEmailToCustomerByOrderPlaced = async (orderId, email) => {
   await sendEmail(email, subject, text);
 };
 
+const sendEmailToCustomerByOrderApproved = async (orderId, email) => {
+  const order = await OrderModel.findById(orderId);
+  if (!order) throw new Error('Order not found');
 
-module.exports = { checkLowStockAndNotify,sendEmailToCustomerByOrderPlaced };
+  const subject = `🧭 Your Order #${order._id} Has Been Approved – BluePulse`;
+
+  const text = `Hi there,
+  
+  Thank you for shopping with **BluePulse**!.
+  Our team has approved your order **#${order._id}** and payment, and it's now being processed.
+  
+  If you have any questions or need help, feel free to contact our support team at support@bluepulse.lk.
+  
+  Thanks again for choosing BluePulse!
+  
+  Warm regards,  
+  **The BluePulse Team**  
+  📍 Gampaha | 🌐 www.bluepulse.lk`;
+  
+
+  await sendEmail(email, subject, text);
+};
+
+const sendEmailToCustomerByOrderCancelled = async (orderId, email, message) => {
+  const order = await OrderModel.findById(orderId);
+  if (!order) throw new Error('Order not found');
+
+  const subject = `❌ Order #${order._id} Cancellation Notice - BluePulse`;
+
+  const text = `Dear Valued Customer,
+
+We regret to inform you that your order #${order._id} has been cancelled.
+
+**Reason for cancellation:** 
+${message}
+
+**Order Details:**
+- Order Number: #${order._id}
+- Date Placed: ${new Date(order.createdAt).toLocaleDateString()}
+- Total Amount: LKR ${order.totalAmount.toFixed(2)}
+
+**What happens next?**
+1. If payment was made, refund will be processed within 3-5 business days
+2. You'll receive confirmation once refund is initiated
+
+**Need help or have questions?**
+- Email: support@bluepulse.lk
+- Phone: +94 76 123 4567
+
+We sincerely apologize for any inconvenience caused. To make it up to you, here's a special 10% discount code for your next purchase: BLUE10
+
+Shop again at: https://www.bluepulse.lk
+
+Thank you for understanding,
+**The BluePulse Team**
+📍 Gampaha | 🌐 www.bluepulse.lk`;
+
+  await sendEmail(email, subject, text);
+};
+
+
+module.exports = { checkLowStockAndNotify,sendEmailToCustomerByOrderPlaced,sendEmailToCustomerByOrderApproved,sendEmailToCustomerByOrderCancelled };

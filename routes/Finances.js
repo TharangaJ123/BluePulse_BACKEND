@@ -40,8 +40,8 @@ router.post("/add", upload.single("UploadDocuments"), async (req, res) => {
             status: "pending"
         });
 
-        await newFinance.save();
-        res.status(201).json({ message: "Finance added successfully", data: newFinance });
+        const saved = await newFinance.save();
+        res.status(201).json({ message: "Finance added successfully", data: newFinance,_id:saved._id });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Error adding finance", details: err.message });
@@ -119,7 +119,7 @@ router.route("/update-status/:id").put(async (req, res) => {
 
         const updatedFinance = await Finance.findByIdAndUpdate(
             financeId,
-            { $set: { status } }, // Only updates the status field
+            { $set: { status,lastUpdated: new Date() } }, // Only updates the status field
             { new: true } // Returns the updated document
         );
 
@@ -136,6 +136,44 @@ router.route("/update-status/:id").put(async (req, res) => {
         res.status(500).json({ error: "Failed to update status", details: err.message });
     }
 });
+
+// GET recently updated finance records (within 5s)
+router.get("/status-updates", async (req, res) => {
+    try {
+        const fiveSecondsAgo = new Date(Date.now() - 60*1000);
+        const updates = await Finance.find(
+            { lastUpdated: { $gte: fiveSecondsAgo } }, 
+            '_id status'
+        );
+
+        // Enhance the response with human-readable messages
+        const enhancedUpdates = updates.map(update => {
+            let message = '';
+            if (update.status === 'Completed') {
+                message = 'Payment Approved';
+            } else if (update.status === 'Cancelled') {
+                message = 'Payment Declined';
+            } else {
+                message = `Payment ${update.status}`;
+            }
+
+            return {
+                _id: update._id,
+                status: update.status,
+                message: message
+            };
+        });
+
+        res.json(enhancedUpdates);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ 
+            error: "Failed to fetch updates", 
+            details: err.message 
+        });
+    }
+});
+  
 
 // DELETE finance
 router.route("/delete/:id").delete(async (req, res) => {

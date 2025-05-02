@@ -8,7 +8,8 @@ const financeSchema = new mongoose.Schema({
     UploadDocuments: { type: String, required: true },
     message: { type: String, required: true },
     status: { type: String, default: "pending" },
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    lastUpdated: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model("Finance", financeSchema);
