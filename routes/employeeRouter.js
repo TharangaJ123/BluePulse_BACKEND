@@ -120,17 +120,14 @@ router.delete('/employees/:id', async (req, res) => {
   }
 });
 
-// Login an employee using email or phone_number
 router.post('/login', async (req, res) => {
   try {
     const { email, phone_number, password } = req.body;
 
-    // Check if either email or phone_number is provided
     if (!email && !phone_number) {
       return handleError(res, 400, 'Email or phone number is required');
     }
 
-    // Find the employee by email or phone_number
     const employee = await Employee.findOne({
       $or: [{ email }, { phone_number }],
     });
@@ -139,16 +136,19 @@ router.post('/login', async (req, res) => {
       return handleError(res, 400, 'Invalid email, phone number, or password');
     }
 
+    if (password !== employee.phone_number) {
+      return handleError(res, 400, 'Invalid email, phone number, or password');
+    }
     
 
-    // Return the employee (excluding the password hash)
     const employeeResponse = employee.toObject ? employee.toObject() : employee;
-    
+    delete employeeResponse.password_hash;
 
     res.json(employeeResponse);
   } catch (err) {
     handleError(res, 500, 'Server error');
   }
 });
+
 
 module.exports = router;
