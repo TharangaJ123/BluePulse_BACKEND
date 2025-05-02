@@ -1,6 +1,5 @@
 const mongoose = require('mongoose'); // Import mongoose
 const { v4: uuidv4 } = require('uuid'); // Import uuid for custom ID generation
-const bcrypt = require('bcrypt'); // Import bcrypt for password hashing
 
 const userSchema = new mongoose.Schema({
   full_name: {
@@ -82,28 +81,6 @@ userSchema.pre('save', function (next) {
   this.updated_at = Date.now(); // Update the `updated_at` field to the current timestamp
   next();
 });
-
-// Middleware to hash the password before saving the user
-userSchema.pre('save', async function (next) {
-  try {
-    if (this.isModified('password_hash')) {
-      const salt = await bcrypt.genSalt(10); // Generate a salt
-      this.password_hash = await bcrypt.hash(this.password_hash, salt); // Hash the password
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Method to compare passwords (for login)
-userSchema.methods.comparePassword = async function (password) {
-  try {
-    return await bcrypt.compare(password, this.password_hash);
-  } catch (error) {
-    throw new Error('Error comparing passwords');
-  }
-};
 
 // Method to generate a password reset token
 userSchema.methods.generatePasswordResetToken = function () {

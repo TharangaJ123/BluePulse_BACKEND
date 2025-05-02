@@ -83,7 +83,7 @@ router.delete('/users/:id', async (req, res) => {
 // Register a new user via form (without email verification)
 router.post('/form-reg', async (req, res) => {
   try {
-    const { full_name, email, password, phone_number, user_image } = req.body;
+    const { full_name, email, password, phone_number, user_role } = req.body;
 
     // Validate required fields
     if (!full_name || !email || !password) {
@@ -92,6 +92,7 @@ router.post('/form-reg', async (req, res) => {
 
     // Trim inputs
     const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
 
     // Check if the email already exists
     const existingUser = await User.findOne({ email: trimmedEmail });
@@ -99,19 +100,14 @@ router.post('/form-reg', async (req, res) => {
       return handleError(res, 400, 'Email already exists');
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
-
-    // Create a new user
+    // Create a new user with password stored directly
     const newUser = new User({
       full_name,
       email: trimmedEmail,
-      password_hash,
+      password_hash: trimmedPassword, // Store password directly
       phone_number: phone_number || null,
-      user_image: user_image || null,
       status: 'active',
-      user_role: 'employee',
+      user_role: user_role || 'user',
       isVerified: true,
     });
 
@@ -129,16 +125,12 @@ router.post('/form-reg', async (req, res) => {
   }
 });
 
-// Login a user
 router.post('/login', async (req, res) => {
   try {
-    console.log('Login attempt:', { email: req.body.email });
-
     const { email, password } = req.body;
 
     // Validate required fields
     if (!email || !password) {
-      console.log('Missing credentials:', { email: !!email, password: !!password });
       return handleError(res, 400, 'Email and password are required');
     }
 
@@ -146,77 +138,73 @@ router.post('/login', async (req, res) => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
+    console.log('Login attempt for email:', trimmedEmail);
+    console.log('Entered password:', trimmedPassword);
+
     // Find the user by email
     const user = await User.findOne({ email: trimmedEmail });
+    
     if (!user) {
-      console.log('User not found:', trimmedEmail);
+      console.log('User not found for email:', trimmedEmail);
+      return handleError(res, 400, 'Invalid email or password');
+    }
+
+    console.log('User found:', {
+      email: user.email,
+      hasPassword: !!user.password_hash,
+      status: user.status,
+      storedPassword: user.password_hash // Now showing plain password
+    });
+
+    // Debug logging for password comparison
+    console.log('Password comparison details:', {
+      enteredPassword: trimmedPassword,
+      storedPassword: user.password_hash,
+      passwordLengths: {
+        entered: trimmedPassword.length,
+        stored: user.password_hash.length
+      },
+      passwordTypes: {
+        entered: typeof trimmedPassword,
+        stored: typeof user.password_hash
+      }
+    });
+
+    // Direct string comparison without hashing
+    const isPasswordValid = trimmedPassword == user.password_hash;
+    console.log('Password comparison result:', isPasswordValid);
+
+    if (!isPasswordValid) {
+      console.log('Invalid password for user:', user.email);
       return handleError(res, 400, 'Invalid email or password');
     }
 
     // Check if user is active
     if (user.status !== 'active') {
-      console.log('Inactive user:', { email: trimmedEmail, status: user.status });
-      return handleError(res, 403, 'Account is not active');
+      console.log('User account not active:', user.email);
+      return handleError(res, 400, 'Account is not active. Please contact support.');
     }
 
-    // Compare the password
-    const isPasswordValid = await bcrypt.compare(trimmedPassword, user.password_hash);
-    if (!isPasswordValid) {
-      console.log('Invalid password for user:', trimmedEmail);
-      return handleError(res, 400, 'Invalid email or password');
-    }
+    // Generate tokens with existing secret
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-    // Generate new JWT secret
-    const newJWTSecret = generateNewJWTSecret();
+    // Update user's refresh token in database
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // Return the user data and tokens
+    const userResponse = user.toObject();
+    delete userResponse.password_hash;
+    delete userResponse.refreshToken;
     
-    // Update .env file with new JWT secret
-    const envPath = path.join(__dirname, '..', '.env');
-    let envContent = '';
-    
-    try {
-      envContent = fs.readFileSync(envPath, 'utf8');
-    } catch (error) {
-      console.log('Creating new .env file');
-    }
+    console.log('Login successful for user:', user.email);
+    res.json({
+      user: userResponse,
+      accessToken,
+      refreshToken
+    });
 
-    // Update or add JWT_SECRET
-    if (envContent.includes('JWT_SECRET=')) {
-      envContent = envContent.replace(/JWT_SECRET=.*/, `JWT_SECRET=${newJWTSecret}`);
-    } else {
-      envContent += `\nJWT_SECRET=${newJWTSecret}`;
-    }
-
-    // Write back to .env file
-    fs.writeFileSync(envPath, envContent);
-
-    // Update process.env
-    process.env.JWT_SECRET = newJWTSecret;
-
-    // Generate tokens with new secret
-    try {
-      const accessToken = generateToken(user);
-      const refreshToken = generateRefreshToken(user);
-
-      // Update user's refresh token in database
-      user.refreshToken = refreshToken;
-      await user.save();
-
-      // Return the user data and tokens
-      const userResponse = { ...user.toObject() };
-      delete userResponse.password_hash;
-      delete userResponse.refreshToken;
-      
-      console.log('Login successful:', { email: trimmedEmail, userId: user._id });
-      
-      res.json({
-        user: userResponse,
-        accessToken,
-        refreshToken
-      });
-    } catch (tokenError) {
-      console.error('Token generation error:', tokenError);
-      return handleError(res, 500, 'Error generating authentication tokens');
-    }
   } catch (err) {
     console.error('Login error:', err);
     handleError(res, 500, 'Server error');
@@ -260,6 +248,129 @@ router.post('/refresh-token', async (req, res) => {
   } catch (err) {
     console.error('Refresh token error:', err);
     handleError(res, 401, 'Invalid refresh token');
+  }
+});
+
+// Get current user details
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password_hash -refreshToken');
+    if (!user) {
+      return handleError(res, 404, 'User not found');
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('Error fetching user details:', err);
+    handleError(res, 500, 'Server error');
+  }
+});
+
+// Forgot password endpoint
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email, phone_number } = req.body;
+
+    // Validate required fields
+    if (!email || !phone_number) {
+      return handleError(res, 400, 'Email and phone number are required');
+    }
+
+    // Find the user by email
+    const user = await User.findOne({ email: email.trim() });
+    
+    if (!user) {
+      return handleError(res, 400, 'No account found with this email');
+    }
+
+    // Verify phone number
+    if (user.phone_number !== phone_number.trim()) {
+      return handleError(res, 400, 'Phone number does not match our records');
+    }
+
+    // Generate a temporary password reset token
+    const resetToken = jwt.sign(
+      { userId: user._id.toString() }, // Convert ObjectId to string
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    
+    // Store the token in the user document
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = Date.now() + 3600000; // 1 hour from now
+    await user.save();
+
+    console.log('Reset token generated and stored:', {
+      userId: user._id,
+      resetToken: resetToken
+    });
+
+    res.json({ 
+      message: 'Verification successful. You can now reset your password.',
+      resetToken 
+    });
+
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    handleError(res, 500, 'Server error');
+  }
+});
+
+// Reset password endpoint
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+
+    if (!resetToken || !newPassword) {
+      return handleError(res, 400, 'Reset token and new password are required');
+    }
+
+    // Verify the reset token
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return handleError(res, 400, 'Reset token has expired');
+      }
+      return handleError(res, 400, 'Invalid reset token');
+    }
+    
+    if (!decoded || !decoded.userId) {
+      return handleError(res, 400, 'Invalid reset token');
+    }
+
+    // Find the user by ID from the decoded token
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return handleError(res, 400, 'User not found');
+    }
+
+    // Check if the stored reset token matches and is not expired
+    if (!user.passwordResetToken) {
+      return handleError(res, 400, 'No reset token found for this user');
+    }
+
+    if (user.passwordResetToken !== resetToken) {
+      return handleError(res, 400, 'Invalid reset token');
+    }
+
+    if (user.passwordResetExpires < Date.now()) {
+      return handleError(res, 400, 'Reset token has expired');
+    }
+
+    // Store new password directly without hashing
+    user.password_hash = newPassword;
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    console.log('Password reset successful for user:', user.email);
+    res.json({ message: 'Password has been reset successfully' });
+
+  } catch (err) {
+    console.error('Reset password error:', err);
+    handleError(res, 500, 'Server error');
   }
 });
 
